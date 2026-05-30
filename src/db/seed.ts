@@ -46,5 +46,5 @@ export async function seedIfEmpty() {
   const { count } = await supabase.from('spheres').select('*', { count: 'exact', head: true })
   if (count && count > 0) return
   await supabase.from('spheres').insert(SPHERES)
-  await supabase.from('tasks').insert(SEED_TASKS)
+  await supabase.from('sphere_tasks').insert(SEED_TASKS)
 }

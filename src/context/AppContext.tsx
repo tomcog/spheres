@@ -62,7 +62,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async function loadAll() {
       const [s, t, i, tm] = await Promise.all([
         supabase.from('spheres').select('*').eq('active', true),
-        supabase.from('tasks').select('*').eq('archived', false),
+        supabase.from('sphere_tasks').select('*').eq('archived', false),
         supabase.from('items').select('*'),
         supabase.from('sphere_timers').select('*'),
       ])
@@ -92,7 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data) setSpheres(data as Sphere[])
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, async () => {
-        const { data } = await supabase.from('tasks').select('*').eq('archived', false)
+        const { data } = await supabase.from('sphere_tasks').select('*').eq('archived', false)
         if (data) setTasks(data as Task[])
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, async () => {
@@ -144,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function reloadTasks() {
-    const { data } = await supabase.from('tasks').select('*').eq('archived', false)
+    const { data } = await supabase.from('sphere_tasks').select('*').eq('archived', false)
     if (data) setTasks(data as Task[])
   }
 
@@ -181,7 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function addTask(task: Omit<Task, 'id'>) {
-    await supabase.from('tasks').insert({ ...task, id: crypto.randomUUID() })
+    await supabase.from('sphere_tasks').insert({ ...task, id: crypto.randomUUID() })
     await reloadTasks()
   }
 

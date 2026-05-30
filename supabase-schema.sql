@@ -10,7 +10,7 @@ create table if not exists spheres (
   active boolean not null default true
 );
 
-create table if not exists tasks (
+create table if not exists sphere_tasks (
   id text primary key,
   "sphereId" text not null,
   title text not null,
@@ -39,12 +39,12 @@ create table if not exists sphere_timers (
 
 -- No auth: disable RLS on all tables so the anon key has full access
 alter table spheres disable row level security;
-alter table tasks disable row level security;
+alter table sphere_tasks disable row level security;
 alter table items disable row level security;
 alter table sphere_timers disable row level security;
 
 -- Enable Realtime so changes on one device appear on others automatically
 alter publication supabase_realtime add table spheres;
-alter publication supabase_realtime add table tasks;
+alter publication supabase_realtime add table sphere_tasks;
 alter publication supabase_realtime add table items;
 alter publication supabase_realtime add table sphere_timers;

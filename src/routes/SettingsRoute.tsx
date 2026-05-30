@@ -12,7 +12,7 @@ export default function SettingsRoute() {
   async function handleExport() {
     const [s, t, i] = await Promise.all([
       supabase.from('spheres').select('*'),
-      supabase.from('tasks').select('*'),
+      supabase.from('sphere_tasks').select('*'),
       supabase.from('items').select('*'),
     ])
     const data = JSON.stringify({ spheres: s.data, tasks: t.data, items: i.data }, null, 2)
@@ -38,10 +38,10 @@ export default function SettingsRoute() {
       // Delete in dependency order, then re-insert
       await supabase.from('items').delete().neq('id', '')
       await supabase.from('sphere_timers').delete().neq('id', '')
-      await supabase.from('tasks').delete().neq('id', '')
+      await supabase.from('sphere_tasks').delete().neq('id', '')
       await supabase.from('spheres').delete().neq('id', '')
       await supabase.from('spheres').insert(data.spheres)
-      await supabase.from('tasks').insert(data.tasks)
+      await supabase.from('sphere_tasks').insert(data.tasks)
       if (data.items?.length) await supabase.from('items').insert(data.items)
       setExportMsg('Imported!')
       setTimeout(() => setExportMsg(''), 2000)
