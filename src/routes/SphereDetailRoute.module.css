@@ -1,0 +1,172 @@
+.page { display: flex; flex-direction: column; min-height: 100%; }
+
+.notFound {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.back {
+  font-size: var(--text-xl);
+  color: var(--text-muted);
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.back:hover { color: var(--text); }
+
+.headerInfo { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); }
+
+.headerTop { display: flex; align-items: center; gap: var(--space-3); }
+
+.name {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.satisfiedBadge {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--sphere-color);
+  background: color-mix(in srgb, var(--sphere-color) 15%, transparent);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.progressRow { display: flex; justify-content: space-between; align-items: center; }
+.progressText { font-size: var(--text-sm); color: var(--text-muted); }
+.timerLabel { font-size: var(--text-xs); color: var(--sphere-color); font-weight: 600; }
+
+.track {
+  height: 5px;
+  background: var(--border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  position: relative;
+}
+
+.doneFill {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  background: var(--sphere-color);
+  border-radius: var(--radius-full);
+  transition: width 400ms ease;
+}
+
+/* Timer reset */
+.timerReset {
+  padding: 0 var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.resetTimerBtn {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  padding: var(--space-1) 0;
+  min-height: 32px;
+  transition: color var(--transition);
+}
+.resetTimerBtn:hover { color: var(--text-muted); }
+
+.section { padding: var(--space-4); }
+
+.sectionTitle {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-3);
+}
+
+.doneItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+  opacity: 0.6;
+}
+.doneItem:last-child { border-bottom: none; }
+
+.doneTitle {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.undoBtn {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-height: 32px;
+  transition: color var(--transition), background var(--transition);
+}
+.undoBtn:hover { color: var(--text); background: var(--surface-raised); }
+
+.removeBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+.removeBtn:hover { color: var(--text-muted); }
+
+/* Unsorted tasks */
+.unsortedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.unsortedRow:last-child { border-bottom: none; }
+
+.unsortedTitle {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.assignHereBtn {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--sphere-color);
+  background: color-mix(in srgb, var(--sphere-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sphere-color) 30%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  min-height: 36px;
+  white-space: nowrap;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.assignHereBtn:hover {
+  background: color-mix(in srgb, var(--sphere-color) 22%, transparent);
+}
