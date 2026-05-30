@@ -1,0 +1,72 @@
+.page {
+  padding: 24px 20px 40px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #666);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.btn {
+  display: inline-block;
+  padding: 14px 24px;
+  background: var(--color-accent, #5b9bd5);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.btn:active {
+  opacity: 0.85;
+}
+
+.running {
+  font-size: 1rem;
+  color: var(--color-text-muted, #666);
+}
+
+.log {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.log li {
+  font-size: 0.875rem;
+  font-family: monospace;
+  color: var(--color-text, #111);
+}
+
+.note {
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #666);
+  margin: 16px 0 0;
+}
+
+.error {
+  font-size: 0.9rem;
+  color: #c0392b;
+  margin: 16px 0 0;
+}
