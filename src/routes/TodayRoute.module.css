@@ -74,7 +74,7 @@
 }
 
 .titleText {
-  font-size: var(--text-sm);
+  font-size: clamp(0.975rem, 2.1vw, 1.063rem);
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.01em;
