@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#f5f5f7"/>
+  <!-- Five sphere dots arranged in a loose circle -->
+  <!-- Physical Health - green, top -->
+  <circle cx="256" cy="128" r="52" fill="#2e9e55"/>
+  <!-- Mental Health - blue, top-right -->
+  <circle cx="384" cy="208" r="52" fill="#2f7dc0"/>
+  <!-- Professional - amber, bottom-right -->
+  <circle cx="344" cy="352" r="52" fill="#c87d10"/>
+  <!-- Organization - slate, bottom-left -->
+  <circle cx="168" cy="352" r="52" fill="#546e7a"/>
+  <!-- Creative - purple, top-left -->
+  <circle cx="128" cy="208" r="52" fill="#7c3fc9"/>
+</svg>
