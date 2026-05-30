@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { db } from '../db/db'
+import { supabase } from '../lib/supabase'
 import type { Sphere, Task, Item } from '../db/types'
 import styles from './SettingsRoute.module.css'
 
@@ -10,12 +10,12 @@ export default function SettingsRoute() {
   const [importError, setImportError] = useState('')
 
   async function handleExport() {
-    const [allSpheres, allTasks, allItems] = await Promise.all([
-      db.spheres.toArray(),
-      db.tasks.toArray(),
-      db.items.toArray(),
+    const [s, t, i] = await Promise.all([
+      supabase.from('spheres').select('*'),
+      supabase.from('tasks').select('*'),
+      supabase.from('items').select('*'),
     ])
-    const data = JSON.stringify({ spheres: allSpheres, tasks: allTasks, items: allItems }, null, 2)
+    const data = JSON.stringify({ spheres: s.data, tasks: t.data, items: i.data }, null, 2)
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -35,14 +35,14 @@ export default function SettingsRoute() {
       const text = await file.text()
       const data = JSON.parse(text) as { spheres: Sphere[]; tasks: Task[]; items: Item[] }
       if (!data.spheres || !data.tasks) throw new Error('Invalid format')
-      await db.transaction('rw', db.spheres, db.tasks, db.items, async () => {
-        await db.spheres.clear()
-        await db.tasks.clear()
-        await db.items.clear()
-        await db.spheres.bulkAdd(data.spheres)
-        await db.tasks.bulkAdd(data.tasks)
-        if (data.items) await db.items.bulkAdd(data.items)
-      })
+      // Delete in dependency order, then re-insert
+      await supabase.from('items').delete().neq('id', '')
+      await supabase.from('sphere_timers').delete().neq('id', '')
+      await supabase.from('tasks').delete().neq('id', '')
+      await supabase.from('spheres').delete().neq('id', '')
+      await supabase.from('spheres').insert(data.spheres)
+      await supabase.from('tasks').insert(data.tasks)
+      if (data.items?.length) await supabase.from('items').insert(data.items)
       setExportMsg('Imported!')
       setTimeout(() => setExportMsg(''), 2000)
     } catch {

@@ -1,6 +1,5 @@
-import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
+import { createContext, useContext, useReducer, useEffect, useState, type ReactNode } from 'react'
+import { supabase } from '../lib/supabase'
 import { seedIfEmpty } from '../db/seed'
 import { todayString, liveElapsed } from '../db/utils'
 import type { Sphere, Task, Item, SphereTimer } from '../db/types'
@@ -49,27 +48,69 @@ const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, { activeDate: todayString() })
+  const [spheres, setSpheres] = useState<Sphere[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [items, setItems] = useState<Item[]>([])
+  const [timers, setTimers] = useState<SphereTimer[]>([])
 
   useEffect(() => {
-    seedIfEmpty()
+    async function init() {
+      await seedIfEmpty()
+      await loadAll()
+    }
+
+    async function loadAll() {
+      const [s, t, i, tm] = await Promise.all([
+        supabase.from('spheres').select('*').eq('active', true),
+        supabase.from('tasks').select('*').eq('archived', false),
+        supabase.from('items').select('*'),
+        supabase.from('sphere_timers').select('*'),
+      ])
+      if (s.data) setSpheres(s.data as Sphere[])
+      if (t.data) setTasks(t.data as Task[])
+      if (i.data) setItems(i.data as Item[])
+      if (tm.data) setTimers(tm.data as SphereTimer[])
+    }
+
+    init()
+
     const msUntilMidnight = () => {
       const now = new Date()
       const midnight = new Date(now)
       midnight.setHours(24, 0, 0, 0)
       return midnight.getTime() - now.getTime()
     }
-    const timer = setTimeout(() => {
+    const midnightTimer = setTimeout(() => {
       dispatch({ type: 'SET_DATE', payload: todayString() })
     }, msUntilMidnight())
-    return () => clearTimeout(timer)
+
+    // Realtime: refetch each table on any change (cross-device sync)
+    const channel = supabase
+      .channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spheres' }, async () => {
+        const { data } = await supabase.from('spheres').select('*').eq('active', true)
+        if (data) setSpheres(data as Sphere[])
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, async () => {
+        const { data } = await supabase.from('tasks').select('*').eq('archived', false)
+        if (data) setTasks(data as Task[])
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, async () => {
+        const { data } = await supabase.from('items').select('*')
+        if (data) setItems(data as Item[])
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sphere_timers' }, async () => {
+        const { data } = await supabase.from('sphere_timers').select('*')
+        if (data) setTimers(data as SphereTimer[])
+      })
+      .subscribe()
+
+    return () => {
+      clearTimeout(midnightTimer)
+      supabase.removeChannel(channel)
+    }
   }, [])
 
-  const spheres = useLiveQuery<Sphere[]>(() => db.spheres.filter((s) => s.active).toArray(), []) ?? []
-  const tasks = useLiveQuery<Task[]>(() => db.tasks.filter((t) => !t.archived).toArray(), []) ?? []
-  const items = useLiveQuery<Item[]>(() => db.items.toArray(), []) ?? []
-  const timers = useLiveQuery<SphereTimer[]>(() => db.sphereTimers.toArray(), []) ?? []
-
-  // Items for a sphere on a date: dated items for that day + undated ongoing items (not done)
   function sphereItemsForDate(sphereId: string, date: string): Item[] {
     return items.filter((item) => {
       if (item.sphereId !== sphereId) return false
@@ -79,7 +120,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  // Items with no sphere assigned (not done)
   const unsortedItems = items.filter((i) => i.sphereId === null && !i.done)
 
   function getTimer(sphereId: string, date: string) {
@@ -98,58 +138,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return allDone || timerHit
   }
 
+  async function reloadItems() {
+    const { data } = await supabase.from('items').select('*')
+    if (data) setItems(data as Item[])
+  }
+
+  async function reloadTasks() {
+    const { data } = await supabase.from('tasks').select('*').eq('archived', false)
+    if (data) setTasks(data as Task[])
+  }
+
+  async function reloadSpheres() {
+    const { data } = await supabase.from('spheres').select('*').eq('active', true)
+    if (data) setSpheres(data as Sphere[])
+  }
+
+  async function reloadTimers() {
+    const { data } = await supabase.from('sphere_timers').select('*')
+    if (data) setTimers(data as SphereTimer[])
+  }
+
   async function addItem(item: Omit<Item, 'id' | 'done' | 'completedAt'>) {
-    await db.items.add({ ...item, id: crypto.randomUUID(), done: false, completedAt: null })
+    await supabase.from('items').insert({ ...item, id: crypto.randomUUID(), done: false, completedAt: null })
+    await reloadItems()
   }
 
   async function toggleItem(id: string, done: boolean) {
-    await db.items.update(id, {
-      done,
-      completedAt: done ? todayString() : null,
-    })
+    await supabase.from('items').update({ done, completedAt: done ? todayString() : null }).eq('id', id)
+    await reloadItems()
   }
 
   async function assignItem(id: string, sphereId: string, date?: string | null) {
     const update: Partial<Item> = { sphereId }
     if (date !== undefined) update.date = date
-    await db.items.update(id, update)
+    await supabase.from('items').update(update).eq('id', id)
+    await reloadItems()
   }
 
   async function removeItem(id: string) {
-    await db.items.delete(id)
+    await supabase.from('items').delete().eq('id', id)
+    await reloadItems()
   }
 
   async function addTask(task: Omit<Task, 'id'>) {
-    await db.tasks.add({ ...task, id: crypto.randomUUID() })
+    await supabase.from('tasks').insert({ ...task, id: crypto.randomUUID() })
+    await reloadTasks()
   }
 
   async function updateSphere(id: string, updates: Partial<Sphere>) {
-    await db.spheres.update(id, updates)
+    await supabase.from('spheres').update(updates).eq('id', id)
+    await reloadSpheres()
   }
 
   async function startTimer(sphereId: string, date: string) {
     const id = `${sphereId}:${date}`
-    const existing = await db.sphereTimers.get(id)
+    const existing = timers.find((t) => t.id === id)
     if (existing) {
       if (existing.runningAt === null) {
-        await db.sphereTimers.update(id, { runningAt: Date.now() })
+        await supabase.from('sphere_timers').update({ runningAt: Date.now() }).eq('id', id)
       }
     } else {
-      await db.sphereTimers.add({ id, sphereId, date, elapsedSeconds: 0, runningAt: Date.now() })
+      await supabase.from('sphere_timers').insert({ id, sphereId, date, elapsedSeconds: 0, runningAt: Date.now() })
     }
+    await reloadTimers()
   }
 
   async function stopTimer(sphereId: string, date: string) {
     const id = `${sphereId}:${date}`
-    const existing = await db.sphereTimers.get(id)
+    const existing = timers.find((t) => t.id === id)
     if (existing && existing.runningAt !== null) {
       const elapsed = existing.elapsedSeconds + Math.floor((Date.now() - existing.runningAt) / 1000)
-      await db.sphereTimers.update(id, { elapsedSeconds: elapsed, runningAt: null })
+      await supabase.from('sphere_timers').update({ elapsedSeconds: elapsed, runningAt: null }).eq('id', id)
+      await reloadTimers()
     }
   }
 
   async function resetTimer(sphereId: string, date: string) {
-    await db.sphereTimers.delete(`${sphereId}:${date}`)
+    await supabase.from('sphere_timers').delete().eq('id', `${sphereId}:${date}`)
+    await reloadTimers()
   }
 
   return (

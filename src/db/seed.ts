@@ -1,4 +1,4 @@
-import { db } from './db'
+import { supabase } from '../lib/supabase'
 import type { Sphere, Task } from './types'
 
 const SPHERES: Sphere[] = [
@@ -43,10 +43,8 @@ const SEED_TASKS: Task[] = [
 ]
 
 export async function seedIfEmpty() {
-  const count = await db.spheres.count()
-  if (count > 0) return
-  await db.transaction('rw', db.spheres, db.tasks, async () => {
-    await db.spheres.bulkAdd(SPHERES)
-    await db.tasks.bulkAdd(SEED_TASKS)
-  })
+  const { count } = await supabase.from('spheres').select('*', { count: 'exact', head: true })
+  if (count && count > 0) return
+  await supabase.from('spheres').insert(SPHERES)
+  await supabase.from('tasks').insert(SEED_TASKS)
 }
