@@ -63,7 +63,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const [s, t, i, tm] = await Promise.all([
         supabase.from('spheres').select('*').eq('active', true),
         supabase.from('sphere_tasks').select('*').eq('archived', false),
-        supabase.from('items').select('*'),
+        supabase.from('items').select('*').order('id'),
         supabase.from('sphere_timers').select('*'),
       ])
       if (s.data) setSpheres(s.data as Sphere[])
@@ -96,7 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (data) setTasks(data as Task[])
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, async () => {
-        const { data } = await supabase.from('items').select('*')
+        const { data } = await supabase.from('items').select('*').order('id')
         if (data) setItems(data as Item[])
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sphere_timers' }, async () => {
@@ -142,7 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function reloadItems() {
-    const { data } = await supabase.from('items').select('*')
+    const { data } = await supabase.from('items').select('*').order('id')
     if (data) setItems(data as Item[])
   }
 
