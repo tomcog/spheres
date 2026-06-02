@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { AppProvider } from './context/AppContext'
 import App from './App'
+import { disableZoom } from './lib/disableZoom'
 import './index.css'
+
+disableZoom()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
