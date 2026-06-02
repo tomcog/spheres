@@ -27,12 +27,12 @@ export default function AddItemSheet({ sphere, date, suggestions, onAdd, onClose
     const t = title.trim()
     if (!t) return
     onAdd(t, resolvedDate())
-    setTitle('')
-    inputRef.current?.focus()
+    onClose()
   }
 
   function handleSuggestion(t: string) {
     onAdd(t, resolvedDate())
+    onClose()
   }
 
   return (

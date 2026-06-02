@@ -27,8 +27,8 @@ export default function SphereDetailRoute() {
   }
 
   const allItems = items.filter((i) => i.sphereId === sphere.id)
-  const todayItems = allItems.filter((i) => (i.date === date || i.date === null) && !i.done)
-  const doneItems = allItems.filter((i) => i.done)
+  const todayItems = allItems.filter((i) => (i.date === null || i.date <= date) && !i.done)
+  const doneItems = allItems.filter((i) => i.done && i.completedAt === date)
 
   const satisfied = isSatisfied(sphere, date)
   const pct = todayItems.length > 0

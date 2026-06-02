@@ -114,9 +114,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function sphereItemsForDate(sphereId: string, date: string): Item[] {
     return items.filter((item) => {
       if (item.sphereId !== sphereId) return false
-      if (item.date === date) return true
-      if (item.date === null && !item.done) return true
-      return false
+      // Completed items appear on the day they were checked off.
+      if (item.done) return item.completedAt === date
+      // Recurring items (no date) show every day until done.
+      if (item.date === null) return true
+      // Dated items show on their day and carry forward each day until completed.
+      return item.date <= date
     })
   }
 
