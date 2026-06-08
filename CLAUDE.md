@@ -1,146 +1,98 @@
-# CLAUDE.md — Spheres
+# CLAUDE.md
 
-Build instructions and project conventions for Claude Code. Read this fully before writing code.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
 ## What this is
 
-A local-first PWA for time-allocation against **spheres of attention**. The user commits to spending a daily floor of minutes on each life area (sphere). They win the day by *showing up* to a sphere, not by clearing a task list. Tasks exist only as *supply*—suggestions for how to spend a sphere's time. Tasks never set the bar; the floor is a fixed number the user sets.
+Spheres is a single-user PWA for time-allocation against **spheres of attention**. The user commits to a daily floor of minutes on each life area (sphere) and wins the day by *showing up* to a sphere, not by clearing a task list. Tasks/items are *supply* — suggestions for how to spend a sphere's time; they never set the bar.
 
-This is a personal app for one user. Optimize for clarity, low friction, and offline reliability—not for scale, multi-user, or a backend.
+Optimize for clarity, low friction, and mobile reliability — not for scale or multi-user. There is exactly one user.
 
----
-
-## Tech stack (locked — do not substitute)
-
-- **React + Vite + TypeScript**
-- **Styling: plain CSS via CSS Modules + CSS custom properties.** NO Tailwind. NO CSS-in-JS runtime. NO preprocessor (Sass/Less). Use native CSS nesting and `clamp()`.
-- **Storage: Dexie.js over IndexedDB.** Local-first. No backend, no auth, no network calls for data.
-- **State: React Context + `useReducer`.** Do not add Redux/Zustand/Jotai.
-- **Routing: react-router.** Real routes so the mobile back button works.
-- **PWA: vite-plugin-pwa** for manifest + service worker (offline-capable).
-- **Dates: date-fns** for all day-boundary logic.
-- **Lint/format: ESLint + Prettier**, configured before feature work.
-
-If a requirement seems to need a library outside this list, STOP and ask rather than adding it.
+> **Note:** `spheres-app-spec.md` is the original product brief. It describes a Dexie/IndexedDB local-first design that the app **no longer uses** (see Architecture below). Treat the spec as product intent, not implementation truth.
 
 ---
 
-## Design constraints
+## Commands
 
-- **Mobile-first, responsive.** Design for a ~380px viewport first; scale up gracefully. Touch targets ≥ 44px.
-- **One screen, one decision.** Avoid choice paralysis. Don't crowd screens.
-- **No shame mechanics.** No streak-breaking guilt, no red "you failed" states, no debt counters. Missing a sphere is neutral, never an error.
-- **Lean CSS.** Define design tokens once in `:root` (the five sphere colors, a spacing scale, font sizes). Reuse them everywhere.
-
----
-
-## Data model
-
-Three entities. **A Session is the only source of truth.** Progress, satisfied-state, and the daily reset are ALWAYS *derived* by summing sessions—never stored as mutable fields.
-
-```ts
-interface Sphere {
-  id: string;
-  name: string;
-  color: string;          // hex; also surfaced as a CSS custom property
-  targetMinutes: number;  // the daily floor the user sets (e.g. 60)
-  rhythm: 'daily' | 'weekly'; // V1 ships 'daily' only; field exists for V2
-  active: boolean;
-}
-
-interface Task {
-  id: string;
-  sphereId: string;
-  title: string;
-  defaultDuration: number;          // minutes this task contributes
-  source: 'user' | 'recurring' | 'suggested';
-  recurrence: null | 'daily' | { daysOfWeek: number[] };
-  archived: boolean;
-}
-
-interface Session {
-  id: string;
-  taskId: string | null;            // nullable: time can be logged with no task
-  sphereId: string;
-  minutes: number;
-  date: string;                     // ISO date; belongs to the LOCAL calendar day it was logged
-  loggedVia: 'timer' | 'manual';
-}
+```bash
+npm run dev       # Vite dev server on :5173
+npm run build     # tsc -b && vite build  (type-check is part of the build)
+npm run lint      # ESLint over the repo
+npm run preview   # serve the production build locally
 ```
 
-### Critical rules
+There is no test suite (tests are intentionally out of scope). `npm run build` is the type-check gate — run it to verify TypeScript before considering a change done.
 
-- **Never store "minutes done" on a Sphere.** Compute it by summing today's Sessions for that sphere. Same for satisfied-state (`sum >= targetMinutes`).
-- **Sessions are immutable and persist forever.** The "midnight reset" is not a delete—today's totals start at zero simply because you only sum sessions whose `date` is today (local time).
-- **Suggestions are just `Task`s with `source: 'suggested'`.** No separate type. Acting on one writes a Session; optionally promote it to a real task.
-- **Day boundary is local-time.** A session belongs to the local calendar day it was logged. Use date-fns; never compare raw UTC strings for "is this today."
+`.env` must define `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`). Without them the app cannot reach its data store.
 
 ---
 
-## The five spheres (seed data)
+## Architecture
 
-Seed the DB on first run with these. Targets are user-editable afterward; default each to 60 min, all daily.
+### Data store: Supabase (Postgres), not local
 
-| Name | Color | Covers |
-|---|---|---|
-| Physical Health | green | exercise, PT, walking, sleep hygiene, food prep, medical |
-| Mental Health | blue | meditation, journaling, therapy, rest, time outside |
-| Professional Development | amber | freelance work, job applications, portfolio, skills, networking |
-| Organization | slate | house, admin, finances, errands, email |
-| Creative Expression | purple | making things for their own sake |
+Despite the "local-first" framing in the spec, **all data lives in Supabase**. The app is a thin client over four tables (`src/lib/supabase.ts` creates the client from env vars):
 
-Pick pleasant, accessible hex values for each; expose them as CSS custom properties.
+- `spheres` — the five life areas
+- `sphere_tasks` — the static suggestion library per sphere (the TS type is `Task`)
+- `items` — flexible to-do items (the unit the user actually checks off)
+- `sphere_timers` — one running/paused timer per sphere per day
 
----
+Key facts about the store:
+- **No auth, RLS disabled.** The anon key has full read/write. This is deliberate for a single-user app — do not add auth or row-level security without being asked.
+- **Column names are camelCase and quoted** in `supabase-schema.sql` (e.g. `"targetMinutes"`, `"completedAt"`) so rows map directly onto the TS interfaces with no field translation. Preserve this when altering the schema.
+- **Realtime sync** (`AppContext`): a single channel subscribes to `postgres_changes` on each table and refetches that table on any change, so edits propagate across devices. Schema changes must also be added to the `supabase_realtime` publication (see bottom of `supabase-schema.sql`).
+- Schema lives in `supabase-schema.sql` and is applied by hand in the Supabase SQL editor — there are no migration files.
 
-## Screens (V1)
+### State: one Context is the source of truth
 
-1. **Today (home)** — five sphere cards, each a fill bar (`done / target`) + satisfied checkmark. A single **"One thing today"** highlight at top (one suggested next action). Tap a card → Sphere Detail.
-2. **Sphere Detail** — header with `done / target`; task supply grouped **Recurring · Yours · Suggestions**; each row has a **timer** button and a **log-it** button; "+ Add task" and a free **"Log time"** entry (minutes, no task needed).
-3. **Timer** — overlay with running clock in the sphere's color; pause/stop; on stop, confirm minutes → write a Session.
-4. **Done Log** — reverse-chronological list of sessions. This is the reward screen: seeing what got done.
-5. **Settings** — edit spheres (name, color, target, active); manage recurring tasks; edit per-sphere suggestion lists; **export/import all data as JSON**.
+`src/context/AppContext.tsx` is the heart of the app. It:
+- Holds the four tables in React state (`spheres`, `tasks`, `items`, `timers`) plus an `activeDate` in a `useReducer`.
+- On mount: `seedIfEmpty()` → `loadAll()` → subscribes to realtime → sets a timer to roll `activeDate` at local midnight.
+- Exposes **all mutations** (`addItem`, `toggleItem`, `assignItem`, `removeItem`, `addTask`, `updateSphere`, `startTimer`/`stopTimer`/`resetTimer`). Every mutation writes to Supabase, then calls a `reload*()` helper to refetch that table. Components never touch `supabase` directly except the one-off `MigrateRoute`.
+- Exposes **derived selectors** — never store computed progress; compute it at read time:
+  - `sphereItemsForDate(sphereId, date)` — the carry-forward logic (see below).
+  - `isSatisfied(sphere, date)` — true when every item for the day is done **or** the timer has reached `targetMinutes`.
+  - `getElapsed` / `liveElapsed` — timer seconds, computed live from `elapsedSeconds + (now - runningAt)`.
 
----
+Use `useApp()` to consume the context; it throws if used outside `AppProvider`.
 
-## Settled decisions (do not relitigate)
+### The `Item` model and carry-forward
 
-1. Fixed floors. Task load never changes a sphere's target.
-2. Both timer and log-after; **log-after is the default path**, timer is a button.
-3. Unmet time vanishes at midnight. No rollover, no debt.
-4. Static, hand-built suggestion lists. No smart/context-aware suggestions in V1.
-5. All five spheres are daily in V1. `rhythm` field exists for a V2 weekly mode.
+`Item` (`src/db/types.ts`) has three modes, encoded by `sphereId`/`date`:
+- `sphereId` + `date` → shows in that sphere on that day, and **carries forward** each later day until completed (`date <= activeDate`).
+- `sphereId` + `null` → recurring; shows in that sphere every day until done.
+- `null` + `null` → unsorted; floats at the bottom of Today until assigned (`unsortedItems`).
 
----
+A completed item appears only on the day it was checked off (`completedAt === date`). This carry-forward / completion logic lives entirely in `sphereItemsForDate` — change it there, not in components.
 
-## In V1 / NOT in V1
+### Routing & screens
 
-**In:** five fixed daily spheres with editable floors; tasks (user/recurring/suggested); timer + manual logging → sessions; Today view with fill bars + "One thing today"; Done Log; hand-built suggestions; midnight reset (derived); JSON export/import.
+`react-router` real routes (so the mobile back button works), defined in `src/App.tsx`, with a persistent bottom `NavBar`:
+- `/` — `TodayRoute`: the five sphere cards + a `DateStrip` to move `activeDate` across the next several days.
+- `/sphere/:id` — `SphereDetailRoute`: items for that sphere on the active date, the timer, and add/assign actions.
+- `/log` — `DoneLogRoute`: reverse-chronological completed items.
+- `/settings` — `SettingsRoute`: edit spheres, manage the suggestion library, etc.
+- `/migrate` — `MigrateRoute`: **one-time** helper that reads the legacy Dexie `SpheresDB` IndexedDB from a device and upserts it into Supabase. Not part of the normal flow; leave it unless doing migration work.
 
-**Not (parked):** weekly-rhythm spheres; smart suggestions; streaks/rewards; friction logging; rollover/debt; body-doubling/social; cross-day analytics/trends; tests.
-
----
-
-## Build order
-
-Build in slices; get the core loop working before polish. Confirm each slice runs before moving on.
-
-1. **Scaffold.** Vite + React + TS project. ESLint + Prettier. Dexie schema for the three entities. Seed the five spheres on first run. Design tokens in `:root`.
-2. **Today view + Sphere Detail + manual logging.** This is the whole loop minus polish: see spheres, open one, log minutes, watch the bar fill (derived from sessions). Make this feel right before anything else.
-3. **Tasks.** Add user tasks, recurring fixtures, and per-sphere suggestion lists. Wire "log-it" buttons to default durations.
-4. **Timer.** Overlay timer writing timer-sourced sessions.
-5. **Done Log.**
-6. **Settings** including JSON export/import.
-7. **PWA.** Manifest, icons (192/512), service worker, offline check, installability.
+Drag-and-drop (assigning/reordering items) uses `@dnd-kit`.
 
 ---
 
 ## Conventions
 
-- TypeScript strict mode on. No `any` without a comment justifying it.
-- Derive, don't store: any "progress" number is computed from sessions at read time.
-- Keep components small and one-purpose. Co-locate each component's CSS Module.
-- All user data stays on-device. No analytics, no telemetry, no external requests.
-- When unsure about a product decision, ask rather than inventing scope.
+- TypeScript strict mode. No `any` without a comment justifying it.
+- **Derive, don't store.** Any progress/satisfied number is computed from the current rows, never persisted as a mutable field.
+- Styling is **CSS Modules + CSS custom properties** only. No Tailwind, no CSS-in-JS, no preprocessor. Each component co-locates its `.module.css`. The five sphere colors and other tokens are defined once in `:root` (`src/index.css`) and reused.
+- **Mobile-first** (~380px viewport), touch targets ≥ 44px. iOS zoom is suppressed via `src/lib/disableZoom.ts`.
+- **No shame mechanics.** Missing a sphere is neutral — never a red error/failure state, no streak/debt counters.
+- When a change would need a library outside the existing deps (`react-router-dom`, `date-fns`, `@dnd-kit`, `@supabase/supabase-js`), or would add auth/a second user, **stop and ask** rather than inventing scope.
+
+---
+
+## Gotchas
+
+- `seedIfEmpty()` only seeds when the `spheres` table is empty; it inserts both spheres and the suggestion library. It won't re-seed or reconcile a partially-populated DB.
+- Day boundaries are **local time** via `date-fns` (`todayString`, `dateString`). Never compare raw UTC strings for "is this today."

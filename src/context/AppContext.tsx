@@ -34,6 +34,7 @@ interface AppContextValue {
   addItem: (item: Omit<Item, 'id' | 'done' | 'completedAt'>) => Promise<void>
   toggleItem: (id: string, done: boolean) => Promise<void>
   assignItem: (id: string, sphereId: string, date?: string | null) => Promise<void>
+  updateItem: (id: string, updates: Partial<Item>) => Promise<void>
   removeItem: (id: string) => Promise<void>
   // Task mutations
   addTask: (task: Omit<Task, 'id'>) => Promise<void>
@@ -91,7 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data } = await supabase.from('spheres').select('*').eq('active', true)
         if (data) setSpheres(data as Sphere[])
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sphere_tasks' }, async () => {
         const { data } = await supabase.from('sphere_tasks').select('*').eq('archived', false)
         if (data) setTasks(data as Task[])
       })
@@ -178,6 +179,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await reloadItems()
   }
 
+  async function updateItem(id: string, updates: Partial<Item>) {
+    await supabase.from('items').update(updates).eq('id', id)
+    await reloadItems()
+  }
+
   async function removeItem(id: string) {
     await supabase.from('items').delete().eq('id', id)
     await reloadItems()
@@ -227,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       spheres, tasks, items, timers,
       sphereItemsForDate, unsortedItems, isSatisfied,
       getTimer, getElapsed,
-      addItem, toggleItem, assignItem, removeItem,
+      addItem, toggleItem, assignItem, updateItem, removeItem,
       addTask, updateSphere,
       startTimer, stopTimer, resetTimer,
     }}>

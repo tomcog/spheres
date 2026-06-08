@@ -198,6 +198,18 @@
   color: var(--text-dim);
 }
 
+.itemEditInput {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--sphere-color);
+  padding: 0 0 2px;
+  outline: none;
+}
+
 .removeBtn {
   width: 28px;
   height: 28px;

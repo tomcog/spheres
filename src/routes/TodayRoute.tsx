@@ -20,7 +20,7 @@ import type { Sphere, Item } from '../db/types'
 import styles from './TodayRoute.module.css'
 
 export default function TodayRoute() {
-  const { spheres, state, setActiveDate, unsortedItems, assignItem, tasks, addItem } = useApp()
+  const { spheres, state, setActiveDate, unsortedItems, assignItem, tasks, addItem, addTask, sphereItemsForDate } = useApp()
   const [activeItem, setActiveItem] = useState<Item | null>(null)
   const [addSheet, setAddSheet] = useState<Sphere | null>(null)
 
@@ -28,6 +28,28 @@ export default function TodayRoute() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
   )
+
+  // The oldest pending (incomplete, dated) task in a sphere — its "age".
+  // Recurring items (date === null) and completed items don't count.
+  function oldestPendingDate(sphereId: string): string | null {
+    const dates = sphereItemsForDate(sphereId, state.activeDate)
+      .filter((i) => !i.done && i.date !== null)
+      .map((i) => i.date as string)
+    return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null
+  }
+
+  // Cards sort oldest-task-first; spheres with no dated task fall to the
+  // bottom; ties (including all-equal ages) break alphabetically by name.
+  const sortedSpheres = [...spheres].sort((a, b) => {
+    const da = oldestPendingDate(a.id)
+    const db = oldestPendingDate(b.id)
+    if (da !== db) {
+      if (da === null) return 1
+      if (db === null) return -1
+      return da < db ? -1 : 1
+    }
+    return a.name.localeCompare(b.name)
+  })
 
   function handleDragStart(event: DragStartEvent) {
     const item = unsortedItems.find((i) => i.id === String(event.active.id))
@@ -56,7 +78,7 @@ export default function TodayRoute() {
         <DateStrip activeDate={state.activeDate} onChange={setActiveDate} />
 
         <div className={styles.sphereList}>
-          {spheres.map((sphere) => (
+          {sortedSpheres.map((sphere) => (
             <SphereBlock
               key={sphere.id}
               sphere={sphere}
@@ -82,10 +104,22 @@ export default function TodayRoute() {
       {addSheet && (
         <AddItemSheet
           sphere={addSheet}
-          date={state.activeDate}
           suggestions={tasks.filter((t) => t.sphereId === addSheet.id)}
-          onAdd={(title, date) => {
-            addItem({ title, sphereId: addSheet.id, date })
+          onAdd={(title, saveAsSuggestion) => {
+            addItem({ title, sphereId: addSheet.id, date: state.activeDate })
+            const exists = tasks.some(
+              (t) => t.sphereId === addSheet.id && t.title.toLowerCase() === title.toLowerCase(),
+            )
+            if (saveAsSuggestion && !exists) {
+              addTask({
+                sphereId: addSheet.id,
+                title,
+                defaultDuration: 30,
+                source: 'suggested',
+                recurrence: null,
+                archived: false,
+              })
+            }
           }}
           onClose={() => setAddSheet(null)}
         />
@@ -106,7 +140,7 @@ function SphereBlock({
   onOpenAdd: (sphere: Sphere) => void
 }) {
   const navigate = useNavigate()
-  const { sphereItemsForDate, isSatisfied, toggleItem, removeItem, getTimer, getElapsed, startTimer, stopTimer } = useApp()
+  const { sphereItemsForDate, isSatisfied, toggleItem, removeItem, updateItem, getTimer, getElapsed, startTimer, stopTimer } = useApp()
   const { setNodeRef, isOver } = useDroppable({ id: sphere.id })
   const [, tick] = useState(0)
 
@@ -175,12 +209,10 @@ function SphereBlock({
               >
                 {item.done && <span className={styles.checkmark}>✓</span>}
               </button>
-              <span className={`${styles.itemTitle} ${item.done ? styles.itemDone : ''}`}>
-                {item.title}
-                {item.date === null && !item.done && (
-                  <span className={styles.recurringDot} title="Repeats daily until done" />
-                )}
-              </span>
+              <EditableItemTitle
+                item={item}
+                onSave={(title) => updateItem(item.id, { title })}
+              />
               <button className={styles.removeBtn} onClick={() => removeItem(item.id)} aria-label={`Remove ${item.title}`}>×</button>
             </li>
           ))}
@@ -193,6 +225,49 @@ function SphereBlock({
         <button className={styles.addTrigger} onClick={() => onOpenAdd(sphere)}>+ Add</button>
       </div>
     </div>
+  )
+}
+
+// ─── Editable item title ──────────────────────────────────────────────────
+
+function EditableItemTitle({ item, onSave }: { item: Item; onSave: (title: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(item.title)
+
+  function commit() {
+    const t = draft.trim()
+    if (t && t !== item.title) onSave(t)
+    else setDraft(item.title)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        className={styles.itemEditInput}
+        value={draft}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') { setDraft(item.title); setEditing(false) }
+        }}
+      />
+    )
+  }
+
+  return (
+    <span
+      className={`${styles.itemTitle} ${item.done ? styles.itemDone : ''}`}
+      onClick={() => { setDraft(item.title); setEditing(true) }}
+      title="Tap to edit"
+    >
+      {item.title}
+      {item.date === null && !item.done && (
+        <span className={styles.recurringDot} title="Repeats daily until done" />
+      )}
+    </span>
   )
 }
 
