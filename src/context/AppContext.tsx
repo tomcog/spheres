@@ -113,14 +113,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   function sphereItemsForDate(sphereId: string, date: string): Item[] {
+    const today = todayString()
     return items.filter((item) => {
       if (item.sphereId !== sphereId) return false
       // Completed items appear on the day they were checked off.
       if (item.done) return item.completedAt === date
-      // Recurring items (no date) show every day until done.
-      if (item.date === null) return true
-      // Dated items show on their day and carry forward each day until completed.
-      return item.date <= date
+      // Recurring items (no date) show every day until done, but never project
+      // into the future — future days stay clear until they become today.
+      if (item.date === null) return date <= today
+      // Dated items show on their assigned day and carry forward each following
+      // day until completed — but only up to today. They do not pre-populate
+      // future days; a task only reappears once that day actually becomes today.
+      const carryUntil = item.date > today ? item.date : today
+      return item.date <= date && date <= carryUntil
     })
   }
 

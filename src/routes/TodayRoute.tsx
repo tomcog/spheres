@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   DndContext,
   PointerSensor,
@@ -148,8 +148,41 @@ function SphereBlock({
   const running = timer?.runningAt != null
   if (running) setTimeout(() => tick((n) => n + 1), 1000)
 
+  // Optimistic check-off: flip the checkbox immediately but hold the backend
+  // write (and therefore any resort) for 2s so a mis-tap can be undone.
+  const [pendingDone, setPendingDone] = useState<Record<string, boolean>>({})
+  const commitTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  useEffect(() => {
+    const timers = commitTimers.current
+    return () => { for (const t of Object.values(timers)) clearTimeout(t) }
+  }, [])
+
+  function effectiveDone(item: Item) {
+    return item.id in pendingDone ? pendingDone[item.id] : item.done
+  }
+
+  function handleToggleItem(item: Item) {
+    const id = item.id
+    // A second tap within the window cancels the pending commit (undo).
+    if (commitTimers.current[id]) {
+      clearTimeout(commitTimers.current[id])
+      delete commitTimers.current[id]
+      setPendingDone((p) => { const { [id]: _, ...rest } = p; return rest })
+      return
+    }
+    const next = !item.done
+    setPendingDone((p) => ({ ...p, [id]: next }))
+    commitTimers.current[id] = setTimeout(async () => {
+      delete commitTimers.current[id]
+      await toggleItem(id, next)
+      // Clear the override only after the real value has landed, avoiding flicker.
+      setPendingDone((p) => { const { [id]: _, ...rest } = p; return rest })
+    }, 2000)
+  }
+
   const acts = sphereItemsForDate(sphere.id, date)
-  const doneCount = acts.filter((a) => a.done).length
+  const doneCount = acts.filter((a) => effectiveDone(a)).length
   const pct = acts.length > 0 ? Math.min(100, (doneCount / acts.length) * 100) : 0
   const satisfied = isSatisfied(sphere, date)
   const elapsed = getElapsed(sphere.id, date)
@@ -166,27 +199,35 @@ function SphereBlock({
       style={{ '--sphere-color': sphere.color } as React.CSSProperties}
     >
       <div className={styles.blockHeader}>
-        <button
-          className={styles.blockTitle}
-          onClick={() => navigate(`/sphere/${sphere.id}?date=${date}`)}
-          aria-label={`${sphere.name} settings`}
-        >
-          <span className={styles.colorDot} />
-          <span className={styles.titleText}>{sphere.name}</span>
-          {satisfied && <span className={styles.satisfiedCheck}>✓</span>}
-        </button>
+        <div className={styles.blockHeaderLeft}>
+          <button
+            className={styles.addDot}
+            onClick={() => onOpenAdd(sphere)}
+            aria-label={`Add task to ${sphere.name}`}
+          >
+            <span className={styles.addDotIcon}>+</span>
+          </button>
+          <button
+            className={styles.blockTitle}
+            onClick={() => navigate(`/sphere/${sphere.id}?date=${date}`)}
+            aria-label={`${sphere.name} settings`}
+          >
+            <span className={styles.titleText}>{sphere.name}</span>
+            {satisfied && <span className={styles.satisfiedCheck}>✓</span>}
+          </button>
+        </div>
 
         <button
           className={`${styles.timerBtn} ${running ? styles.timerRunning : ''}`}
           onClick={handleToggleTimer}
-          aria-label={running ? 'Stop timer' : 'Start timer'}
+          aria-label={running ? 'Pause timer' : 'Start timer'}
         >
           {running ? (
-            <><span className={styles.timerIcon}>⏹</span><span className={styles.timerElapsed}>{formatElapsed(elapsed)}</span></>
+            <><span className={styles.timerIcon}>⏸</span><span className={styles.timerElapsed}>{formatElapsed(elapsed)}</span></>
           ) : elapsed > 0 ? (
             <><span className={styles.timerIcon}>▶</span><span className={styles.timerElapsed}>{formatElapsed(elapsed)}</span></>
           ) : (
-            <span className={styles.timerStart}>▶ Start</span>
+            <span className={styles.timerIcon}>▶</span>
           )}
         </button>
       </div>
@@ -199,38 +240,38 @@ function SphereBlock({
 
       {acts.length > 0 ? (
         <ul className={styles.itemList}>
-          {acts.map((item) => (
+          {acts.map((item) => {
+            const done = effectiveDone(item)
+            return (
             <li key={item.id} className={styles.itemRow}>
               <button
-                className={`${styles.checkbox} ${item.done ? styles.checked : ''}`}
-                onClick={() => toggleItem(item.id, !item.done)}
-                aria-label={item.done ? `Uncheck ${item.title}` : `Check ${item.title}`}
-                aria-pressed={item.done}
+                className={`${styles.checkbox} ${done ? styles.checked : ''}`}
+                onClick={() => handleToggleItem(item)}
+                aria-label={done ? `Uncheck ${item.title}` : `Check ${item.title}`}
+                aria-pressed={done}
               >
-                {item.done && <span className={styles.checkmark}>✓</span>}
+                {done && <span className={styles.checkmark}>✓</span>}
               </button>
               <EditableItemTitle
                 item={item}
+                done={done}
                 onSave={(title) => updateItem(item.id, { title })}
               />
               <button className={styles.removeBtn} onClick={() => removeItem(item.id)} aria-label={`Remove ${item.title}`}>×</button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       ) : (
         <p className={styles.emptyHint}>Nothing planned yet</p>
       )}
-
-      <div className={styles.addArea}>
-        <button className={styles.addTrigger} onClick={() => onOpenAdd(sphere)}>+ Add</button>
-      </div>
     </div>
   )
 }
 
 // ─── Editable item title ──────────────────────────────────────────────────
 
-function EditableItemTitle({ item, onSave }: { item: Item; onSave: (title: string) => void }) {
+function EditableItemTitle({ item, done, onSave }: { item: Item; done: boolean; onSave: (title: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.title)
 
@@ -259,12 +300,12 @@ function EditableItemTitle({ item, onSave }: { item: Item; onSave: (title: strin
 
   return (
     <span
-      className={`${styles.itemTitle} ${item.done ? styles.itemDone : ''}`}
+      className={`${styles.itemTitle} ${done ? styles.itemDone : ''}`}
       onClick={() => { setDraft(item.title); setEditing(true) }}
       title="Tap to edit"
     >
       {item.title}
-      {item.date === null && !item.done && (
+      {item.date === null && !done && (
         <span className={styles.recurringDot} title="Repeats daily until done" />
       )}
     </span>
