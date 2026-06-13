@@ -31,8 +31,13 @@
 }
 
 .active {
-  background: var(--surface-raised);
-  color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.active:hover {
+  background: var(--text);
+  color: var(--bg);
 }
 
 .dayName {
@@ -49,5 +54,5 @@
 }
 
 .active .dayNum {
-  color: var(--text);
+  color: var(--bg);
 }

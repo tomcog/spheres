@@ -99,7 +99,8 @@
   font-size: clamp(0.975rem, 2.1vw, 1.063rem);
   font-weight: 700;
   color: var(--text);
-  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .satisfiedCheck {
@@ -209,7 +210,7 @@
 
 .itemTitle {
   flex: 1;
-  font-size: var(--text-sm);
+  font-size: calc(var(--text-sm) + 2px);
   color: var(--text);
   min-width: 0;
 }
@@ -222,7 +223,7 @@
 .itemEditInput {
   flex: 1;
   min-width: 0;
-  font-size: var(--text-sm);
+  font-size: calc(var(--text-sm) + 2px);
   color: var(--text);
   background: transparent;
   border: none;

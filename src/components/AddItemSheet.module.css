@@ -112,9 +112,10 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  font-size: var(--text-sm);
+  font-size: calc(var(--text-sm) + 2px);
   color: var(--text-muted);
   text-align: left;
   min-height: 44px;
@@ -125,8 +126,16 @@
 .suggestionRow:hover { background: var(--surface-raised); color: var(--text); }
 
 .plus {
-  color: var(--text-dim);
-  font-size: var(--text-lg);
-  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--sphere-color);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
   flex-shrink: 0;
 }

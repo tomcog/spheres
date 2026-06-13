@@ -71,8 +71,8 @@ export default function AddItemSheet({ sphere, suggestions, onAdd, onClose }: Pr
             {suggestions.map((t) => (
               <li key={t.id}>
                 <button className={styles.suggestionRow} onClick={() => handleSuggestion(t.title)}>
-                  <span>{t.title}</span>
                   <span className={styles.plus}>+</span>
+                  <span>{t.title}</span>
                 </button>
               </li>
             ))}
